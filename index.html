@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة الداما - تحريك الأحجار</title>
+    <style>
+        body { margin: 0; background-color: #f4f4f4; display: flex; flex-direction: column; align-items: center; font-family: Arial, sans-serif; }
+        canvas { background-color: white; margin-top: 20px; border: 2px solid black; }
+        #output { margin-top: 15px; font-size: 20px; font-weight: bold; color: #333; min-height: 30px; }
+        #letters { margin-top: 10px; font-size: 30px; color: green; letter-spacing: 5px; }
+    </style>
+</head>
+<body>
+    <div id="output">اضغط على حجر أزرق ثم على وجهته</div>
+    <div id="letters">الكلمة: </div>
+    <canvas id="myCanvas" width="400" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById("myCanvas");
+        const ctx = canvas.getContext("2d");
+        const outputDiv = document.getElementById("output");
+        const lettersDiv = document.getElementById("letters");
+
+        const spacing = 80;
+        const startX = 40;
+        const startY = 40;
+
+        let points = {};
+        let selected_point = null; 
+        let formedWord = ""; // لتخزين الكلمة التي يتم تشكيلها
+
+        // قاموس الحروف
+        const letter_map = {
+            "1,2": 'A', "1,6": 'A',
+            "3,2": 'B', "3,8": 'B', "3,4": 'B',
+            "5,4": 'D', "5,10": 'D',
+            "7,2": 'M', "7,6": 'M', "7,8": 'M', "7,12": 'M',
+            "9,4": 'N', "9,10": 'N', "9,8": 'N', "9,14": 'N',
+            "11,6": 'i', "11,12": 'i', "11,16": 'i',
+            "13,8": 'F', "13,12": 'F', "13,14": 'F', "13,18": 'F',
+            "15,10": 'T', "15,14": 'T', "15,20": 'T',
+            "17,12": 'H', "17,16": 'H', "17,18": 'H', "17,22": 'H',
+            "19,14": 'E', "19,18": 'E', "19,20": 'E', "19,24": 'E',
+            "21,16": 'L', "21,22": 'L',
+            "23,18": 'O', "23,22": 'O', "23,24": 'O',
+            "25,20": 'Z', "25,24": 'Z'
+        };
+
+        // الخطوط الوردية (للإرجاع)
+        const pink_paths = [
+            [2, 1], [6, 1], [4, 3], [8, 3], [2, 3], [10, 5], [4, 5],
+            [8, 7], [6, 7], [12, 7], [12, 11], [16, 11], [6, 11],
+            [8, 13], [18, 13], [12, 13], [14, 13], [10, 15], [20, 15], [14, 15],
+            [12, 17], [22, 17], [16, 17], [18, 17], [14, 19], [24, 19], [18, 19], [20, 19],
+            [16, 21], [22, 21], [18, 23], [24, 23], [22, 23], [20, 25], [24, 25]
+        ];
+
+        // لتتبع أماكن الأحجار (نبدأ بوضع الأحجار في الأرقام الفردية)
+        let pieces = {};
+        for (let i = 1; i <= 25; i++) {
+            if (i % 2 != 0) {
+                pieces[i] = true; // يوجد حجر هنا
+            } else {
+                pieces[i] = false; // لا يوجد حجر
+            }
+        }
+
+        function drawBoard() {
+            ctx.clearRect(0, 0, 400, 400);
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, 400, 400);
+
+            // رسم الشبكة
+            ctx.strokeStyle = "#ccc";
+            for (let i = 0; i <= 4; i++) {
+                ctx.beginPath(); ctx.moveTo(startX + i * spacing, startY); ctx.lineTo(startX + i * spacing, startY + 4 * spacing); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(startX, startY + i * spacing); ctx.lineTo(startX + 4 * spacing, startY + i * spacing); ctx.stroke();
+            }
+
+            // رسم النقاط
+            for (let i = 1; i <= 25; i++) {
+                let col = (i - 1) % 5;
+                let row = Math.floor((i - 1) / 5);
+                let x = startX + (4 - col) * spacing;
+                let y = startY + row * spacing;
+                
+                points[i] = { x: x, y: y };
+
+                // النقطة السوداء
+                ctx.fillStyle = "black";
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // إذا كان الحجر موجوداً في هذه النقطة (نرسمه أزرق)
+                if (pieces[i]) {
+                    ctx.fillStyle = "blue";
+                    ctx.beginPath();
+                    ctx.arc(x, y, 12, 0, 2 * Math.PI);
+                    ctx.fill();
+
+                    ctx.fillStyle = "white";
+                    ctx.font = "10px Arial";
+                    ctx.fillText(i, x - 5, y + 3);
+                }
+            }
+        }
+
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            let touch = e.touches[0];
+            let rect = canvas.getBoundingClientRect();
+            let touchX = (touch.clientX - rect.left) * (canvas.width / rect.width);
+            let touchY = (touch.clientY - rect.top) * (canvas.height / rect.height);
+
+            for (let num in points) {
+                let p = points[num];
+                if (Math.abs(touchX - p.x) < 20 && Math.abs(touchY - p.y) < 20) {
+                    handleTap(parseInt(num));
+                    break;
+                }
+            }
+        });
+
+        function handleTap(num) {
+            if (selected_point === null) {
+                // اختيار حجر
+                if (pieces[num]) { // هل يوجد حجر هنا؟
+                    selected_point = num;
+                    outputDiv.innerText = "اخترت الحجر رقم: " + num + ". الآن اختر وجهته.";
+                } else {
+                    outputDiv.innerText = "لا يوجد حجر في هذا الموقع.";
+                }
+            } else {
+                // تحريك الحجر
+                let start = selected_point;
+                let end = num;
+                selected_point = null; 
+
+                let key = start + "," + end; 
+                
+                if (letter_map[key]) {
+                    let letter = letter_map[key];
+                    // 1. تحريك الحجر: إزالته من النقطة القديمة ووضعه في الجديدة
+                    pieces[start] = false;
+                    pieces[end] = true;
+                    
+                    // 2. تحديث الكلمة
+                    formedWord += letter;
+                    lettersDiv.innerText = "الكلمة: " + formedWord;
+                    
+                    outputDiv.innerText = "حركة صحيحة! الحرف الناتج: " + letter;
+                    
+                    // إعادة رسم اللوحة بعد الحركة
+                    drawBoard();
+                    
+                } else if (pink_paths.some(path => path[0] === start && path[1] === end)) {
+                    outputDiv.innerText = "حركة رجوع (وردية): تم إرجاع الحجر دون حرف.";
+                    // تحريك الحجر للخلف (إزالته من الزوجية ووضعه في الفردية)
+                    pieces[start] = false;
+                    pieces[end] = true;
+                    drawBoard();
+                    
+                } else {
+                    outputDiv.innerText = "خطأ: هذا المسار غير مسموح به.";
+                }
+            }
+        }
+
+        drawBoard();
+    </script>
+</body>
+</html>

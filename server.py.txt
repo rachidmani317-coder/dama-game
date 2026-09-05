@@ -1,0 +1,25 @@
+# server.py
+from flask import Flask, send_from_directory
+from flask_socketio import SocketIO, emit
+import os
+
+app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# عند اتصال لاعب جديد
+@socketio.on('connect')
+def handle_connect():
+    print("لاعب جديد انضم!")
+    emit('message', {'text': 'تم الاتصال بالخادم بنجاح!'})
+
+# عند استقبال حركة من لاعب
+@socketio.on('move')
+def handle_move(data):
+    # data يحتوي على: { 'letter': 'A', 'move': '1-6' }
+    print("استلمت حركة:", data)
+    # نرسل الحركة لجميع اللاعبين الآخرين
+    emit('move_received', data, broadcast=True)
+
+# تشغيل الخادم
+if __name__ == "__main__":
+    socketio.run(app, host="0.0.0.0", port=5000) 
